@@ -66,6 +66,46 @@ def detail_url(movie_id):
     return reverse("cinema:movie-detail", args=[movie_id])
 
 
+class ProjectIntegrationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_user(
+            email="admin.user@cinema.com",
+            password="1qazcde3",
+        )
+
+    def test_jwt_token_obtain_pair(self):
+        response = self.client.post(
+            "/api/user/token/",
+            {"email": "admin.user@cinema.com", "password": "1qazcde3"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+
+    def test_swagger_schema_includes_movie_query_parameters(self):
+        response = self.client.get("/api/doc/schema/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        movie_params = response.data["paths"]["/api/cinema/movies/"]["get"][
+            "parameters"
+        ]
+        movie_param_names = {param["name"] for param in movie_params}
+        self.assertIn("title", movie_param_names)
+        self.assertIn("genres", movie_param_names)
+        self.assertIn("actors", movie_param_names)
+
+        session_params = response.data["paths"]["/api/cinema/movie_sessions/"][
+            "get"
+        ]["parameters"]
+        session_param_names = {param["name"] for param in session_params}
+        self.assertIn("date", session_param_names)
+        self.assertIn("movie", session_param_names)
+
+
 class MovieImageUploadTests(TestCase):
     def setUp(self):
         self.client = APIClient()
