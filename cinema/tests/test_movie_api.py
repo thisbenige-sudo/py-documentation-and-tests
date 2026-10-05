@@ -106,6 +106,79 @@ class ProjectIntegrationTests(TestCase):
         self.assertIn("movie", session_param_names)
 
 
+class MovieViewSetTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = get_user_model().objects.create_superuser(
+            "admin@myproject.com", "password"
+        )
+        self.client.force_authenticate(self.user)
+
+        self.genre_1 = sample_genre(name="Drama")
+        self.genre_2 = sample_genre(name="Action")
+        self.actor_1 = sample_actor(first_name="Tom", last_name="Hanks")
+        self.actor_2 = sample_actor(first_name="Meryl", last_name="Streep")
+
+        self.movie_1 = sample_movie(title="Inception", duration=120)
+        self.movie_1.genres.set([self.genre_1.id, self.genre_2.id])
+        self.movie_1.actors.set([self.actor_1.id])
+
+        self.movie_2 = sample_movie(title="Arrival", duration=116)
+        self.movie_2.genres.set([self.genre_1.id])
+        self.movie_2.actors.set([self.actor_2.id])
+
+    def test_list_movies(self):
+        response = self.client.get(MOVIE_URL)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_retrieve_movie_detail(self):
+        response = self.client.get(detail_url(self.movie_1.id))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["title"], self.movie_1.title)
+        self.assertIn("genres", response.data)
+        self.assertIn("actors", response.data)
+
+    def test_filter_movies_by_title(self):
+        response = self.client.get(MOVIE_URL, {"title": "inception"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["title"], self.movie_1.title)
+
+    def test_filter_movies_by_genres(self):
+        response = self.client.get(MOVIE_URL, {"genres": f"{self.genre_1.id}"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_filter_movies_by_actors(self):
+        response = self.client.get(MOVIE_URL, {"actors": f"{self.actor_1.id}"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["title"], self.movie_1.title)
+
+    def test_create_movie(self):
+        payload = {
+            "title": "Django Unchained",
+            "description": "A revenge western.",
+            "duration": 165,
+            "genres": [self.genre_1.id, self.genre_2.id],
+            "actors": [self.actor_1.id, self.actor_2.id],
+        }
+
+        response = self.client.post(MOVIE_URL, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Movie.objects.count(), 3)
+        self.assertTrue(
+            Movie.objects.filter(title="Django Unchained").exists()
+        )
+
+
 class MovieImageUploadTests(TestCase):
     def setUp(self):
         self.client = APIClient()
